@@ -9,9 +9,38 @@ class AwsCloudTrailEventListener {
       this.cloudtrailEvent = JSON.parse(cloudtrailEvent.Records[0].Sns.Message);
     } else {
       this.cloudtrailEvent = cloudtrailEvent;
-    }
+    }    
+
     this.applicationContext = applicationContext;
     this.enabledServices = enabledServices;
+  }
+
+  parsePrincipalAttributes(ctEvent) {
+    const uid = ctEvent.userIdentity
+    const principal = {} 
+    switch (uid.type) {
+      case "IAMUser": {
+        principal.arn = uid.arn
+        principal.user = uid.userName
+        principal.role = 'no-info'
+        break
+      }
+      case "AssumedRole": {
+        principal.arn = uid.arn
+        
+        const arnItems = uid.arn.split('/')
+        principal.user = arnItems[arnItems.length - 1]
+        
+        principal.role = 'no-info'
+        if (Object.hasOwn(uid, 'sessionContext')) {
+          principal.role = uid.sessionContext.sessionIssuer.arn 
+        }
+        
+        break
+      }
+    }
+
+    ctEvent.custom = { 'principal': principal }
   }
 
   async execute() {
@@ -21,6 +50,7 @@ class AwsCloudTrailEventListener {
       // this field was the only field that was moved from the "detail" sub-hash up into the top level
       event.recipientAccountId = this.cloudtrailEvent.account;
       if (!event.errorCode && !event.errorMessage) {
+        this.parsePrincipalAttributes(event);
         const worker = AutotagFactory.createWorker(event, this.enabledServices, this.cloudtrailEvent.region);
         await worker.tagResource();
         this.logDebug();
