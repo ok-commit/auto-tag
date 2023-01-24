@@ -32,7 +32,7 @@ class AwsCloudTrailEventListener {
         principal.user = arnItems[arnItems.length - 1]
         
         principal.role = 'no-info'
-        if (Object.hasOwn(uid, 'sessionContext')) {
+        if (uid.hasOwnProperty('sessionContext')) {
           principal.role = uid.sessionContext.sessionIssuer.arn 
         }
         
